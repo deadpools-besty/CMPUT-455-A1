@@ -286,6 +286,8 @@ class GtpConnection:
 
     def gogui_rules_legal_moves_cmd(self, args):
         """ Implement this function for Assignment 1 """
+
+        
         self.respond()
         return
 
