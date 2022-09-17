@@ -93,7 +93,7 @@ class GoBoard(object):
         """
         assert is_black_white(color)
         if point == PASS:
-            return True
+            return False
         # Could just return False for out-of-bounds, 
         # but it is better to know if this is called with an illegal point
         assert self.pt(1, 1) <= point <= self.pt(self.size, self.size)
@@ -103,7 +103,19 @@ class GoBoard(object):
         if point == self.ko_recapture:
             return False
         return True
-
+    def is_wrong_coord(self, point: GO_POINT, color: GO_COLOR)->bool:
+        if not self.pt(1, 1) <= point <= self.pt(self.size, self.size):
+            return True
+        elif not is_black_white_empty(self.board[point]):
+            return True
+        else:
+            return False
+    def is_occupied(self, point: GO_POINT, color: GO_COLOR)->bool:
+        if self.board[point] != EMPTY:
+            return True
+        else:
+            return False
+        
     def is_legal(self, point: GO_POINT, color: GO_COLOR) -> bool:
         """
         Check whether it is legal for color to play on point
@@ -111,10 +123,12 @@ class GoBoard(object):
         This prevents the board from being modified by the move
         """
         if point == PASS:
-            return True
+            return False
         board_copy: GoBoard = self.copy()
-        can_play_move = board_copy.play_move(point, color)
-        return can_play_move
+        if board_copy.play_move(point, color) == 'legal':
+            return True
+        else:
+            return False
 
     def end_of_game(self) -> bool:
         return self.last_move == PASS \
@@ -210,38 +224,22 @@ class GoBoard(object):
                     pointstack.append(nb)
         return marker
 
-    def _detect_and_process_capture(self, nb_point: GO_POINT) -> GO_POINT:
+    def _detect_capture(self, nb_point: GO_POINT) -> bool:
         """
-        Check whether opponent block on nb_point is captured.
-        If yes, remove the stones.
-        Returns the stone if only a single stone was captured,
-        and returns NO_POINT otherwise.
-        This result is used in play_move to check for possible ko
+        Return True is an capture occured else False
         """
-        single_capture: GO_POINT = NO_POINT
+        captured = False
         opp_block = self._block_of(nb_point)
         if not self._has_liberty(opp_block):
-            captures = list(where1d(opp_block))
-            self.board[captures] = EMPTY
-            if len(captures) == 1:
-                single_capture = nb_point
-        return single_capture
+            return True
+        return captured
 
-    def play_move(self, point: GO_POINT, color: GO_COLOR) -> bool:
+    def play_move(self, point: GO_POINT, color: GO_COLOR) -> str:
         """
         Play a move of color on point
         Returns whether move was legal
+            legal, suicide, capture
         """
-        if not self._is_legal_check_simple_cases(point, color):
-            return False
-        # Special cases
-        if point == PASS:
-            self.ko_recapture = NO_POINT
-            self.current_player = opponent(color)
-            self.last2_move = self.last_move
-            self.last_move = point
-            return True
-
         # General case: deal with captures, suicide, and next ko point
         opp_color = opponent(color)
         in_enemy_eye = self._is_surrounded(point, opp_color)
@@ -250,20 +248,22 @@ class GoBoard(object):
         neighbors = self._neighbors(point)
         for nb in neighbors:
             if self.board[nb] == opp_color:
-                single_capture = self._detect_and_process_capture(nb)
-                if single_capture != NO_POINT:
-                    single_captures.append(single_capture)
+                captured = self._detect_capture(nb)
+                if captured:
+                    self.board[point] = EMPTY
+                    # TODO this might give suicide output instead of capture illegal
+                    return "capture"
         block = self._block_of(point)
         if not self._has_liberty(block):  # undo suicide move
             self.board[point] = EMPTY
-            return False
+            return "suicide"
         self.ko_recapture = NO_POINT
         if in_enemy_eye and len(single_captures) == 1:
             self.ko_recapture = single_captures[0]
         self.current_player = opponent(color)
         self.last2_move = self.last_move
         self.last_move = point
-        return True
+        return "legal"
 
     def neighbors_of_color(self, point: GO_POINT, color: GO_COLOR) -> List:
         """ List of neighbors of point of given color """
